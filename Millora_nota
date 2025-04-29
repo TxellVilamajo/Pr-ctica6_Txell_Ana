@@ -1,0 +1,79 @@
+#include <Arduino.h>
+#include <SPI.h>
+#include <SD.h>
+#include <MFRC522.h>
+#include <Wire.h>
+#include <RTClib.h>
+
+#define RFID_CS_PIN   5   // Pin CS per al lector RFID (SDA)
+#define SD_CS_PIN     15  // Pin CS per la targeta SD
+#define RST_PIN       4   // Pin de reset del lector RFID
+
+MFRC522 rfid(RFID_CS_PIN, RST_PIN); // Crear objecte per al lector RFID
+RTC_DS3231 rtc;                    // Crear objecte per al rellotge en temps real
+
+File logFile; // Variable per al fitxer de registre
+
+void setup() {
+  Serial.begin(115200); // Iniciar la comunicació serial
+  SPI.begin(13, 12, 11, RFID_CS_PIN);  // Iniciar SPI (SCK=13, MISO=12, MOSI=11, SS=5)
+  
+  if (!SD.begin(SD_CS_PIN)) {
+    Serial.println("Error en la inicialització de la targeta SD");
+    return;
+  }
+  
+  if (!rtc.begin()) {
+    Serial.println("No es va trobar el rellotge RTC");
+    return;
+  }
+  
+  rfid.PCD_Init();      // Iniciar el lector RFID
+  Serial.println("Acosta una targeta RFID...");
+  
+  // Obrir el fitxer .log per afegir informació
+  logFile = SD.open("lectures.log", FILE_WRITE); 
+  if (logFile) {
+    logFile.println("Inici de les lectures RFID:");
+    logFile.close();
+  } else {
+    Serial.println("Error en obrir el fitxer .log");
+  }
+}
+
+void loop() {
+  if (!rfid.PICC_IsNewCardPresent()) {
+    return;  // Si no hi ha cap targeta nova, no fer res
+  }
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;  // Si no es pot llegir la targeta, no fer res
+  }
+
+  // Obtenir la data i hora actual
+  DateTime now = rtc.now();
+
+  // Mostrar el UID de la targeta en el monitor serial
+  Serial.print("UID: ");
+  String uid = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    uid += String(rfid.uid.uidByte[i], HEX);
+    uid += " ";
+  }
+  Serial.println(uid);
+
+  // Escriure en el fitxer .log
+  logFile = SD.open("lectures.log", FILE_APPEND);
+  if (logFile) {
+    logFile.print(now.timestamp(DateTime::TIMESTAMP_DATE));
+    logFile.print(" ");
+    logFile.print(now.timestamp(DateTime::TIMESTAMP_TIME));
+    logFile.print(" UID: ");
+    logFile.println(uid);
+    logFile.close();
+  } else {
+    Serial.println("Error en escriure en el fitxer");
+  }
+
+  rfid.PICC_HaltA();    // Aturar la lectura de la targeta
+  delay(1000);           // Esperar un segon per evitar múltiples lectures
+}
