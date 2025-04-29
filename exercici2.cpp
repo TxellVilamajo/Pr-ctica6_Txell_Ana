@@ -16,7 +16,7 @@ void setup() {
   SPI.begin(12, 13, 11, RFID_CS_PIN); // SCK=12, MISO=13, MOSI=11, SS=5
 
   rfid.PCD_Init(); 
-  Serial.println("Acerca una tarjeta RFID...");
+  Serial.println("Apropa una targeta RFID...");
 
 }
 
